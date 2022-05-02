@@ -78,6 +78,7 @@ struct _GstRTPBasePayloadPrivate
 
   /* array of GstRTPHeaderExtension's * */
   GPtrArray *header_exts;
+  gboolean read_ssrc_from_meta;
 };
 
 /* RTPBasePayload signals and args */
@@ -137,7 +138,8 @@ enum
   PROP_ONVIF_NO_RATE_CONTROL,
   PROP_SCALE_RTPTIME,
   PROP_AUTO_HEADER_EXTENSION,
-  PROP_LAST
+  PROP_LAST,
+  PROP_READ_SSRC_META
 };
 
 static void gst_rtp_base_payload_class_init (GstRTPBasePayloadClass * klass);
@@ -491,6 +493,17 @@ gst_rtp_base_payload_class_init (GstRTPBasePayloadClass * klass)
       G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION,
       G_CALLBACK (gst_rtp_base_payload_clear_extensions), NULL, NULL, NULL,
       G_TYPE_NONE, 0);
+
+      /**
+       *  source-ssrc - Read ssrc from source buffer
+       * 
+       */
+
+    g_object_class_install_property (gobject_class, PROP_READ_SSRC_META,
+      g_param_spec_boolean ("source-ssrc", "Set SSRC from the source",
+          "Write SSRC based on buffer meta RTP source information",
+          DEFAULT_SOURCE_INFO, G_PARAM_READWRITE));
+
 
   gstelement_class->change_state = gst_rtp_base_payload_change_state;
 
@@ -1189,18 +1202,40 @@ gst_rtp_base_payload_negotiate (GstRTPBasePayload * payload)
     /* If we got no ssrc above, select one now */
     /* get first structure */
     s = gst_caps_get_structure (temp, 0);
+    int is_ssrc_already_set = 0;
 
     if (gst_structure_has_field_typed (s, "ssrc", G_TYPE_UINT)) {
       value = gst_structure_get_value (s, "ssrc");
       payload->current_ssrc = g_value_get_uint (value);
       GST_LOG_OBJECT (payload, "using peer ssrc %08x", payload->current_ssrc);
+      is_ssrc_already_set = 1;
     } else {
       /* FIXME, fixate_nearest_uint would be even better but we
        * don't support uint ranges so how likely is it that anybody
        * uses a list of possible ssrcs */
-      gst_structure_set (s, "ssrc", G_TYPE_UINT, payload->current_ssrc, NULL);
-      GST_LOG_OBJECT (payload, "using internal ssrc %08x",
+      
+      //todo: read ssrc from metadata if property source_ssrc is set
+
+      if (payload->priv && payload->priv->read_ssrc_from_meta && payload->priv->input_meta_buffer != NULL) {
+         GstRTPSourceMeta *meta = gst_buffer_get_rtp_source_meta (payload->priv->input_meta_buffer);
+          if (meta && meta->ssrc_valid) {              
+              payload->current_ssrc = meta->ssrc;
+              is_ssrc_already_set = 1;
+              GST_LOG_OBJECT (payload, "using source ssrc %08x",
+                payload->current_ssrc);
+          }         
+      }
+
+      // set ssrc to random value if not set
+      if (is_ssrc_already_set == 0) {
+        gst_structure_set (s, "ssrc", G_TYPE_UINT, payload->current_ssrc, NULL);
+        GST_LOG_OBJECT (payload, "using internal ssrc %08x",
           payload->current_ssrc);
+      }
+
+      
+     
+      
     }
     s = NULL;
 
@@ -2172,6 +2207,10 @@ gst_rtp_base_payload_set_property (GObject * object, guint prop_id,
     case PROP_AUTO_HEADER_EXTENSION:
       priv->auto_hdr_ext = g_value_get_boolean (value);
       break;
+    case PROP_READ_SSRC_META:
+      priv->read_ssrc_from_meta = g_value_get_boolean (value);
+      break;
+    
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
