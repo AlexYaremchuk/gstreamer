@@ -495,13 +495,13 @@ gst_rtp_base_payload_class_init (GstRTPBasePayloadClass * klass)
       G_TYPE_NONE, 0);
 
       /**
-       *  source-ssrc - Read ssrc from source buffer
+       *  source-ssrc - Read ssrc from source buffer. 
        * 
        */
 
     g_object_class_install_property (gobject_class, PROP_READ_SSRC_META,
       g_param_spec_boolean ("source-ssrc", "Set SSRC from the source",
-          "Write SSRC based on buffer meta RTP source information",
+          "Write SSRC based on buffer meta RTP source information. If disabled, the SSRC will be set to the configured SSRC value or generaded randomly",
           DEFAULT_SOURCE_INFO, G_PARAM_READWRITE));
 
 
@@ -1214,8 +1214,8 @@ gst_rtp_base_payload_negotiate (GstRTPBasePayload * payload)
        * don't support uint ranges so how likely is it that anybody
        * uses a list of possible ssrcs */
       
-      //todo: read ssrc from metadata if property source_ssrc is set
-
+      
+      //read ssrc from metadata if property source-ssrc is set
       if (payload->priv && payload->priv->read_ssrc_from_meta && payload->priv->input_meta_buffer != NULL) {
          GstRTPSourceMeta *meta = gst_buffer_get_rtp_source_meta (payload->priv->input_meta_buffer);
           if (meta && meta->ssrc_valid) {              
