@@ -1218,12 +1218,15 @@ gst_rtp_base_payload_negotiate (GstRTPBasePayload * payload)
       //read ssrc from metadata if property source-ssrc is set
       if (payload->priv && payload->priv->read_ssrc_from_meta && payload->priv->input_meta_buffer != NULL) {
          GstRTPSourceMeta *meta = gst_buffer_get_rtp_source_meta (payload->priv->input_meta_buffer);
+         GST_LOG_OBJECT (payload, "loading ssrc from metadata");
           if (meta && meta->ssrc_valid) {              
               payload->current_ssrc = meta->ssrc;
               is_ssrc_already_set = 1;
               GST_LOG_OBJECT (payload, "using source ssrc %08x",
                 payload->current_ssrc);
-          }         
+          } else{
+              GST_LOG_OBJECT (payload, "no ssrc in metadata");
+          }
       }
 
       // set ssrc to random value if not set
@@ -2208,6 +2211,7 @@ gst_rtp_base_payload_set_property (GObject * object, guint prop_id,
       priv->auto_hdr_ext = g_value_get_boolean (value);
       break;
     case PROP_READ_SSRC_META:
+    GST_LOG_OBJECT (rtpbasepayload, "source-ssrc was set");
       priv->read_ssrc_from_meta = g_value_get_boolean (value);
       break;
     
